@@ -32,8 +32,21 @@ Next.js app for generating skin-tone-modified portraits and morph transitions be
 3. Fill required values in `.env.local`:
    - `GEMINI_API_KEY`
    - `ACCESS_PASSCODE`
+   - `KV_REST_API_URL`
+   - `KV_REST_API_TOKEN`
 4. Run dev server:
    ```bash
    npm run dev
    ```
 
+## Global quota behavior
+
+To enforce a universal quota across all users and all deployed instances, configure Vercel KV (Upstash) and set:
+
+- `KV_REST_API_URL`
+- `KV_REST_API_TOKEN`
+
+The app enforces global limits of:
+
+- 30 requests per hour
+- 50 requests per day

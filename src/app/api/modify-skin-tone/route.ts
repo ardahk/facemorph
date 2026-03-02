@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Rate limiting
-  const rateResult = checkAndRecordCall();
+  const rateResult = await checkAndRecordCall();
   if (!rateResult.allowed) {
     return NextResponse.json(
       { error: rateResult.message },
