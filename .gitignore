@@ -41,3 +41,4 @@ rate-limit.json
 
 # local assistant metadata
 .claude/
+.docs/
