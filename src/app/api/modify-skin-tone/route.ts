@@ -3,7 +3,8 @@ import { GoogleGenAI } from '@google/genai';
 import { checkAndRecordCall } from '@/lib/rate-limiter';
 import { AUTH_COOKIE_NAME, isAuthCookieValid } from '@/lib/auth';
 
-export const maxDuration = 60;
+export const maxDuration = 300;
+const GEMINI_TIMEOUT_MS = 240_000;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const MAX_BASE64_CHARS = Math.ceil((MAX_IMAGE_BYTES * 4) / 3) + 1024;
 const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -102,16 +103,21 @@ Please output ONLY the modified image.`;
   const ai = new GoogleGenAI({ apiKey });
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-image-preview',
-      contents: [
-        { text: prompt },
-        { inlineData: { mimeType, data: imageBase64 } },
-      ],
-      config: {
-        responseModalities: ['TEXT', 'IMAGE'],
-      },
-    });
+    const response = await Promise.race([
+      ai.models.generateContent({
+        model: 'gemini-3.1-flash-image-preview',
+        contents: [
+          { text: prompt },
+          { inlineData: { mimeType, data: imageBase64 } },
+        ],
+        config: {
+          responseModalities: ['TEXT', 'IMAGE'],
+        },
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Gemini request timed out')), GEMINI_TIMEOUT_MS)
+      ),
+    ]);
 
     const parts = response.candidates?.[0]?.content?.parts;
     if (!parts) {
@@ -151,6 +157,13 @@ Please output ONLY the modified image.`;
     });
   } catch (error: unknown) {
     console.error('Gemini API error:', error);
+    const message = error instanceof Error ? error.message : '';
+    if (message.includes('timed out')) {
+      return NextResponse.json(
+        { error: 'Image generation timed out. Please retry once.' },
+        { status: 504 }
+      );
+    }
     return NextResponse.json(
       { error: 'Failed to modify image. Please try again.' },
       { status: 500 }
