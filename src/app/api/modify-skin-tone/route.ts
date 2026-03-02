@@ -1,10 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { checkAndRecordCall } from '@/lib/rate-limiter';
+import { AUTH_COOKIE_NAME, isAuthCookieValid } from '@/lib/auth';
 
 export const maxDuration = 60;
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_BASE64_CHARS = Math.ceil((MAX_IMAGE_BYTES * 4) / 3) + 1024;
+const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const ALLOWED_DIRECTIONS = new Set(['black-to-white', 'white-to-black']);
 
 export async function POST(request: NextRequest) {
+  const isDevNoPasscode =
+    process.env.NODE_ENV !== 'production' && !process.env.ACCESS_PASSCODE;
+
+  const authCookie = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  if (!isDevNoPasscode && !isAuthCookieValid(authCookie)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey || apiKey === 'your_key_here') {
     return NextResponse.json(
@@ -38,6 +51,22 @@ export async function POST(request: NextRequest) {
   if (!imageBase64 || !mimeType || !direction) {
     return NextResponse.json(
       { error: 'Missing required fields: imageBase64, mimeType, direction' },
+      { status: 400 }
+    );
+  }
+  if (!ALLOWED_MIME_TYPES.has(mimeType)) {
+    return NextResponse.json({ error: 'Unsupported image type' }, { status: 400 });
+  }
+  if (!ALLOWED_DIRECTIONS.has(direction)) {
+    return NextResponse.json({ error: 'Invalid direction' }, { status: 400 });
+  }
+  if (!isSafeBase64(imageBase64) || imageBase64.length > MAX_BASE64_CHARS) {
+    return NextResponse.json({ error: 'Invalid image data' }, { status: 400 });
+  }
+  const decodedBytes = Buffer.byteLength(imageBase64, 'base64');
+  if (!Number.isFinite(decodedBytes) || decodedBytes <= 0 || decodedBytes > MAX_IMAGE_BYTES) {
+    return NextResponse.json(
+      { error: 'Image must be under 10 MB.' },
       { status: 400 }
     );
   }
@@ -121,9 +150,14 @@ Please output ONLY the modified image.`;
       dailyRemaining: rateResult.dailyRemaining,
     });
   } catch (error: unknown) {
-    const message =
-      error instanceof Error ? error.message : 'Failed to modify image';
     console.error('Gemini API error:', error);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to modify image. Please try again.' },
+      { status: 500 }
+    );
   }
+}
+
+function isSafeBase64(value: string): boolean {
+  return /^[A-Za-z0-9+/=]+$/.test(value);
 }

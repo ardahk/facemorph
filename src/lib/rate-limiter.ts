@@ -1,13 +1,10 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import { isKvConfigured, kvNumberCommand } from './kv';
 
 const RATE_FILE = process.env.VERCEL
   ? '/tmp/rate-limit.json'
   : join(process.cwd(), 'rate-limit.json');
-const KV_REST_URL =
-  process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-const KV_REST_TOKEN =
-  process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 const HOURLY_LIMIT = 30;
 const DAILY_LIMIT = 50;
 
@@ -42,12 +39,28 @@ export interface RateLimitResult {
 }
 
 export async function checkAndRecordCall(): Promise<RateLimitResult> {
-  if (KV_REST_URL && KV_REST_TOKEN) {
+  const isProd = process.env.NODE_ENV === 'production';
+  if (isKvConfigured()) {
     try {
       return await checkAndRecordGlobalCall();
     } catch {
-      // Fall back to local file-based limiter in non-prod/dev failure cases.
+      if (isProd) {
+        return {
+          allowed: false,
+          hourlyRemaining: 0,
+          dailyRemaining: 0,
+          message: 'Rate limiter unavailable. Please try again shortly.',
+        };
+      }
     }
+  }
+  if (isProd) {
+    return {
+      allowed: false,
+      hourlyRemaining: 0,
+      dailyRemaining: 0,
+      message: 'Rate limiter is not configured.',
+    };
   }
   return checkAndRecordLocalCall();
 }
@@ -110,10 +123,10 @@ async function checkAndRecordGlobalCall(): Promise<RateLimitResult> {
   const hourKey = `ratelimit:global:hour:${formatUtcHour(now)}`;
   const dayKey = `ratelimit:global:day:${formatUtcDay(now)}`;
 
-  const hourCount = await redisNumberCommand('INCR', hourKey);
-  await redisNumberCommand('EXPIRE', hourKey, String(60 * 60 * 2));
+  const hourCount = await kvNumberCommand('INCR', hourKey);
+  await kvNumberCommand('EXPIRE', hourKey, String(60 * 60 * 2));
   if (hourCount > HOURLY_LIMIT) {
-    await redisNumberCommand('DECR', hourKey);
+    await kvNumberCommand('DECR', hourKey);
     const retryAfterSeconds = secondsUntilNextUtcHour(now);
     return {
       allowed: false,
@@ -124,11 +137,11 @@ async function checkAndRecordGlobalCall(): Promise<RateLimitResult> {
     };
   }
 
-  const dayCount = await redisNumberCommand('INCR', dayKey);
-  await redisNumberCommand('EXPIRE', dayKey, String(60 * 60 * 24 * 2));
+  const dayCount = await kvNumberCommand('INCR', dayKey);
+  await kvNumberCommand('EXPIRE', dayKey, String(60 * 60 * 24 * 2));
   if (dayCount > DAILY_LIMIT) {
-    await redisNumberCommand('DECR', dayKey);
-    await redisNumberCommand('DECR', hourKey);
+    await kvNumberCommand('DECR', dayKey);
+    await kvNumberCommand('DECR', hourKey);
     const retryAfterSeconds = secondsUntilNextUtcDay(now);
     return {
       allowed: false,
@@ -144,28 +157,6 @@ async function checkAndRecordGlobalCall(): Promise<RateLimitResult> {
     hourlyRemaining: HOURLY_LIMIT - hourCount,
     dailyRemaining: DAILY_LIMIT - dayCount,
   };
-}
-
-async function redisNumberCommand(...parts: string[]): Promise<number> {
-  if (!KV_REST_URL || !KV_REST_TOKEN) {
-    throw new Error('KV REST environment variables are not configured');
-  }
-
-  const path = parts.map((part) => encodeURIComponent(part)).join('/');
-  const res = await fetch(`${KV_REST_URL}/${path}`, {
-    headers: {
-      Authorization: `Bearer ${KV_REST_TOKEN}`,
-    },
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    throw new Error(`KV command failed: ${res.status}`);
-  }
-
-  const data = (await res.json()) as { result?: number | string | null };
-  const value = Number(data.result ?? 0);
-  return Number.isFinite(value) ? value : 0;
 }
 
 function formatUtcHour(date: Date): string {

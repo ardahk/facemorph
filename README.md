@@ -10,7 +10,7 @@ Next.js app for generating skin-tone-modified portraits and morph transitions be
   - `facemorph.me API`
   - `Local (Cross-Dissolve)`
 - Morph slider/video preview and downloads
-- Basic server-side rate limiting
+- Server-side auth cookie + global rate limiting
 
 ## Tech stack
 
@@ -32,6 +32,7 @@ Next.js app for generating skin-tone-modified portraits and morph transitions be
 3. Fill required values in `.env.local`:
    - `GEMINI_API_KEY`
    - `ACCESS_PASSCODE`
+   - `AUTH_COOKIE_SECRET` (at least 16 chars)
    - `KV_REST_API_URL`
    - `KV_REST_API_TOKEN`
 4. Run dev server:
@@ -50,3 +51,5 @@ The app enforces global limits of:
 
 - 30 requests per hour
 - 50 requests per day
+
+In production, KV is required and limiter failures are fail-closed.
