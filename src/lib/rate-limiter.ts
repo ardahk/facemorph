@@ -1,7 +1,9 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
 
-const RATE_FILE = join(process.cwd(), 'rate-limit.json');
+const RATE_FILE = process.env.VERCEL
+  ? '/tmp/rate-limit.json'
+  : join(process.cwd(), 'rate-limit.json');
 const HOURLY_LIMIT = 30;
 const DAILY_LIMIT = 50;
 
@@ -19,7 +21,12 @@ function readRateData(): RateData {
 }
 
 function writeRateData(data: RateData): void {
-  writeFileSync(RATE_FILE, JSON.stringify(data, null, 2));
+  try {
+    writeFileSync(RATE_FILE, JSON.stringify(data, null, 2));
+  } catch {
+    // Ignore persistence errors in restricted runtimes (e.g. serverless FS).
+    // The API should still function even if rate-limit state cannot be saved.
+  }
 }
 
 export interface RateLimitResult {
