@@ -256,6 +256,10 @@ function ResearchTool() {
         dailyRemaining: data.dailyRemaining,
       });
 
+      // Default to local engine after Gemini so users get instant results.
+      setEngine('local');
+      setActiveResult(null);
+
       if (data.hourlyRemaining !== undefined) {
         setQuota({ hourly: data.hourlyRemaining, daily: data.dailyRemaining });
       }
@@ -416,7 +420,7 @@ function ResearchTool() {
         {geminiResult && (
           <section>
             <MorphEngineSelector
-              engine={engine || 'facemorph-api'}
+              engine={engine || 'local'}
               onChange={handleEngineSelect}
               disabled={shouldRunPipeline}
             />

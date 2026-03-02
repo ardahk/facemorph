@@ -8,7 +8,7 @@ const securityHeaders = [
   {
     key: 'Content-Security-Policy',
     value:
-      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https:; connect-src 'self' https://api.facemorph.me https://*.googleapis.com https://*.upstash.io; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https:; media-src 'self' https://api.facemorph.me; connect-src 'self' https://api.facemorph.me https://*.googleapis.com https://*.upstash.io; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
   },
 ];
 

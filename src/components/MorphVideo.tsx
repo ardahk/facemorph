@@ -16,15 +16,18 @@ export default function MorphVideo({ mp4Url }: Props) {
       <div className="flex justify-center">
         <div className="rounded-lg overflow-hidden border border-gray-200 bg-gray-100 inline-block">
           <video
-            src={mp4Url}
             controls
             autoPlay
             loop
             muted
             playsInline
+            preload="metadata"
+            crossOrigin="anonymous"
             className="block max-w-full h-auto"
             style={{ maxWidth: 512 }}
-          />
+          >
+            <source src={mp4Url} type="video/mp4" />
+          </video>
         </div>
       </div>
     </div>

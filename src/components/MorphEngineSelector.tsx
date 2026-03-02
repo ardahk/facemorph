@@ -19,14 +19,14 @@ export default function MorphEngineSelector({
     desc: string;
   }[] = [
     {
-      value: 'facemorph-api',
-      label: 'facemorph.me API',
-      desc: 'StyleGAN2 interpolation — higher quality, requires external service',
-    },
-    {
       value: 'local',
       label: 'Local (Cross-Dissolve)',
       desc: 'Instant pixel blending — runs entirely in your browser, no external service',
+    },
+    {
+      value: 'facemorph-api',
+      label: 'facemorph.me API',
+      desc: 'StyleGAN2 interpolation — higher quality, requires external service',
     },
   ];
 
